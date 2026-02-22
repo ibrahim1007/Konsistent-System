@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Planner Terpadu 2026 Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        
+        /* Navigasi Aktif */
+        .sidebar-item-active { background-color: #1e293b; border-left: 4px solid #3b82f6; color: white; }
+        
+        /* Kalender Responsif */
+        .calendar-day { 
+            min-height: 80px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-start; 
+            justify-content: flex-start; 
+            cursor: pointer; 
+            border-radius: 8px; 
+            transition: all 0.2s; 
+            position: relative; 
+            border: 1px solid #e2e8f0; 
+            padding: 4px;
+            background-color: white;
+        }
+        @media (min-width: 768px) { .calendar-day { min-height: 110px; padding: 8px; } }
+        
+        .day-success { background-color: #f0fdf4 !important; border-color: #22c55e !important; }
+        .day-fail { background-color: #fef2f2 !important; border-color: #ef4444 !important; }
+        
+        /* Pil Data */
+        .target-pill, .task-pill {
+            font-size: 8px; padding: 1px 3px; border-radius: 3px; color: white; margin-top: 2px;
+            width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;
+        }
+        @media (min-width: 768px) { .target-pill, .task-pill { font-size: 9px; padding: 2px 5px; margin-top: 3px; } }
+        
+        .target-pill { background-color: #3b82f6; }
+        .task-pill { background-color: #10b981; }
+        
+        /* Quadrant Scroll */
+        .quadrant-card { height: 250px; overflow-y: auto; }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .chart-container { position: relative; height: 250px; width: 100%; }
+        @media (min-width: 768px) { .chart-container { height: 300px; } }
+
+        /* Sidebar Transition */
+        #sidebar { transition: transform 0.3s ease-in-out; }
+    </style>
+</head>
+<body class="text-slate-800 flex h-screen overflow-hidden bg-slate-50">
+
+    <!-- Overlay untuk Mobile Sidebar -->
+    <div id="sidebar-overlay" onclick="toggleSidebar()" class="fixed inset-0 bg-slate-900/50 z-30 hidden lg:hidden"></div>
+
+    <!-- Sidebar Navigation -->
+    <aside id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-slate-900 text-slate-300 flex flex-col shadow-xl z-40 transform -translate-x-full lg:translate-x-0 lg:static lg:inset-auto">
+        <div class="p-6 flex items-center justify-between text-white border-b border-slate-800">
+            <div class="flex items-center space-x-3">
+                <i class="fas fa-chart-line text-blue-500 text-2xl"></i>
+                <span class="font-bold tracking-widest text-sm uppercase text-blue-400">Konsistent</span>
+            </div>
+            <button onclick="toggleSidebar()" class="lg:hidden text-slate-400 hover:text-white">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-grow py-6 space-y-1 overflow-y-auto">
+            <button onclick="setView('dashboard')" id="nav-dashboard" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition sidebar-item-active">
+                <i class="fas fa-th-large w-5"></i><span>Dashboard</span>
+            </button>
+            <button onclick="setView('daily')" id="nav-daily" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition hover:bg-slate-800">
+                <i class="fas fa-list-check w-5"></i><span>Rencana Harian</span>
+            </button>
+            <button onclick="setView('target')" id="nav-target" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition hover:bg-slate-800">
+                <i class="fas fa-bullseye w-5"></i><span>Target Realistis</span>
+            </button>
+            <button onclick="setView('list-tugas')" id="nav-list-tugas" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition hover:bg-slate-800">
+                <i class="fas fa-clipboard-list w-5"></i><span>List Tugas</span>
+            </button>
+            <button onclick="setView('calendar')" id="nav-calendar" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition hover:bg-slate-800">
+                <i class="fas fa-calendar-alt w-5"></i><span>Kalender 2026</span>
+            </button>
+            <button onclick="setView('financial')" id="nav-financial" class="w-full flex items-center space-x-3 px-6 py-3 text-sm transition hover:bg-slate-800">
+                <i class="fas fa-wallet w-5"></i><span>Keuangan</span>
+            </button>
+        </nav>
+        
+        <div class="p-6 bg-slate-800/50 border-t border-slate-800">
+            <p class="text-[10px] text-slate-500 uppercase font-bold mb-2">Sistem Progres</p>
+            <div class="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div id="overall-progress" class="bg-blue-500 h-full w-0 transition-all duration-500"></div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Workspace -->
+    <div class="flex-grow flex flex-col overflow-hidden w-full">
+        
+        <!-- Header Utama -->
+        <header class="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-4 lg:px-8 shrink-0">
+            <div class="flex items-center space-x-4">
+                <button onclick="toggleSidebar()" class="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <h2 id="view-title" class="font-bold text-slate-700 uppercase tracking-widest text-xs sm:text-sm text-blue-600 truncate">Dashboard</h2>
+            </div>
+            <div id="current-date-display" class="hidden sm:block text-[10px] sm:text-xs font-mono font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full"></div>
+        </header>
+
+        <main class="flex-grow overflow-y-auto p-4 lg:p-8 bg-slate-50 scroll-smooth">
+            <div id="content-area" class="max-w-7xl mx-auto space-y-6 lg:space-y-8">
+                
+                <!-- VIEW: DASHBOARD -->
+                <div id="view-dashboard" class="space-y-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Tugas Hari Ini</p>
+                            <h3 id="dash-daily" class="text-xl lg:text-2xl font-bold text-slate-800">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-blue-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Target Realistis</p>
+                            <h3 id="dash-target" class="text-xl lg:text-2xl font-bold text-slate-800">0</h3>
+                        </div>
+                        <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm border-l-4 border-l-emerald-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Probabilitas Konsisten</p>
+                            <div class="flex items-baseline space-x-1">
+                                <h3 id="dash-probability" class="text-xl lg:text-2xl font-bold text-emerald-600">0%</h3>
+                                <span class="text-[9px] text-slate-400 font-bold uppercase">Akurasi</span>
+                            </div>
+                        </div>
+                        <div id="logic-status-card" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-center">
+                            <div class="flex justify-between items-center">
+                                <div>
+                                    <p class="text-[10px] font-bold text-slate-400 uppercase">Status Konsisten</p>
+                                    <h3 id="dash-logic-text" class="text-xs font-bold text-slate-500 italic">...</h3>
+                                </div>
+                                <i id="dash-logic-icon" class="fas fa-info-circle text-slate-300 text-xl"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: RENCANA HARIAN -->
+                <div id="view-daily" class="hidden space-y-6">
+                    <div class="bg-white p-4 rounded-xl border border-slate-200 flex flex-col md:flex-row gap-3 shadow-sm">
+                        <input type="text" id="daily-input" placeholder="Apa rencana Anda?" class="flex-grow bg-slate-50 border-none px-4 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500">
+                        <select id="daily-quadrant" class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm outline-none">
+                            <option value="1">1. Penting - Mendesak</option>
+                            <option value="2">2. Penting - Tidak Mendesak</option>
+                            <option value="3">3. Tidak Penting - Mendesak</option>
+                            <option value="4">4. Tidak Penting - Tidak Mendesak</option>
+                        </select>
+                        <button onclick="addDailyTask()" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold w-full md:w-auto">TAMBAH</button>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div class="bg-red-50 p-4 rounded-xl border border-red-100 shadow-inner">
+                            <h4 class="text-[10px] font-black text-red-600 uppercase mb-3"><i class="fas fa-fire mr-1"></i> Penting & Mendesak</h4>
+                            <div id="q-1" class="quadrant-card space-y-2"></div>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 shadow-inner">
+                            <h4 class="text-[10px] font-black text-blue-600 uppercase mb-3"><i class="fas fa-star mr-1"></i> Penting & Tidak Mendesak</h4>
+                            <div id="q-2" class="quadrant-card space-y-2"></div>
+                        </div>
+                        <div class="bg-amber-50 p-4 rounded-xl border border-amber-100 shadow-inner">
+                            <h4 class="text-[10px] font-black text-amber-600 uppercase mb-3"><i class="fas fa-bolt mr-1"></i> Tidak Penting & Mendesak</h4>
+                            <div id="q-3" class="quadrant-card space-y-2"></div>
+                        </div>
+                        <div class="bg-slate-100 p-4 rounded-xl border border-slate-200 shadow-inner">
+                            <h4 class="text-[10px] font-black text-slate-500 uppercase mb-3"><i class="fas fa-coffee mr-1"></i> Tidak Penting & Tidak Mendesak</h4>
+                            <div id="q-4" class="quadrant-card space-y-2"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: TARGET REALISTIS -->
+                <div id="view-target" class="hidden space-y-6">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input type="text" id="target-input" placeholder="Target realistis..." class="md:col-span-1 bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                            <input type="date" id="target-date" class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                            <button onclick="addTarget()" class="bg-slate-900 text-white py-2 rounded-lg text-sm font-bold w-full">SIMPAN KE KALENDER</button>
+                        </div>
+                    </div>
+                    <div id="target-list" class="space-y-3"></div>
+                </div>
+
+                <!-- VIEW: LIST TUGAS -->
+                <div id="view-list-tugas" class="hidden space-y-8">
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input type="text" id="tugas-input" placeholder="Masukkan nama tugas..." class="md:col-span-1 bg-slate-50 border-none px-4 py-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-green-500">
+                            <input type="date" id="tugas-date" class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm outline-none">
+                            <button onclick="addListTugas()" class="bg-green-600 text-white py-2 rounded-lg text-sm font-bold hover:bg-green-700 transition shadow-lg">TAMBAH</button>
+                        </div>
+                    </div>
+                    <div id="tugas-list-raw" class="space-y-2"></div>
+
+                    <!-- MATRIKS PRIORITAS DINAMIS DENGAN NAMA SKALA -->
+                    <div class="border-t border-slate-200 pt-8">
+                        <h3 class="text-xs font-black text-slate-700 uppercase mb-6 tracking-widest flex items-center">
+                            <i class="fas fa-sort-amount-down mr-2 text-blue-600"></i> Matriks Prioritas Dinamis (Berdasarkan Deadline)
+                        </h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Skala 1 -->
+                            <div class="bg-red-50 p-5 rounded-2xl border-2 border-red-200 shadow-sm">
+                                <h4 class="text-[11px] font-black text-red-700 uppercase mb-4 flex justify-between">
+                                    <span><i class="fas fa-exclamation-triangle mr-1"></i> SKALA 1: KRITIS</span> 
+                                    <span class="text-[9px]">DEADLINE &le; 2 HARI</span>
+                                </h4>
+                                <div id="t-q-1" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                            <!-- Skala 2 -->
+                            <div class="bg-amber-50 p-5 rounded-2xl border-2 border-amber-200 shadow-sm">
+                                <h4 class="text-[11px] font-black text-amber-700 uppercase mb-4 flex justify-between">
+                                    <span><i class="fas fa-hourglass-half mr-1"></i> SKALA 2: PENTING</span> 
+                                    <span class="text-[9px]">DEADLINE 3-7 HARI</span>
+                                </h4>
+                                <div id="t-q-2" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                            <!-- Skala 3 -->
+                            <div class="bg-blue-50 p-5 rounded-2xl border-2 border-blue-200 shadow-sm">
+                                <h4 class="text-[11px] font-black text-blue-700 uppercase mb-4 flex justify-between">
+                                    <span><i class="fas fa-bell mr-1"></i> SKALA 3: WASPADA</span> 
+                                    <span class="text-[9px]">DEADLINE 8-14 HARI</span>
+                                </h4>
+                                <div id="t-q-3" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                            <!-- Skala 4 -->
+                            <div class="bg-slate-100 p-5 rounded-2xl border-2 border-slate-300 shadow-sm">
+                                <h4 class="text-[11px] font-black text-slate-600 uppercase mb-4 flex justify-between">
+                                    <span><i class="fas fa-calendar-check mr-1"></i> SKALA 4: TERJADWAL</span> 
+                                    <span class="text-[9px]">DEADLINE > 14 HARI</span>
+                                </h4>
+                                <div id="t-q-4" class="space-y-2 min-h-[50px]"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VIEW: KALENDER -->
+                <div id="view-calendar" class="hidden space-y-6">
+                    <div class="bg-white p-4 sm:p-8 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="flex justify-between items-center mb-6">
+                            <button onclick="changeMonth(-1)" class="p-2 hover:bg-slate-100 rounded-full"><i class="fas fa-chevron-left"></i></button>
+                            <div class="text-center">
+                                <h3 id="cal-month" class="font-black text-slate-800 uppercase tracking-tighter text-sm sm:text-lg">Januari 2026</h3>
+                            </div>
+                            <button onclick="changeMonth(1)" class="p-2 hover:bg-slate-100 rounded-full"><i class="fas fa-chevron-right"></i></button>
+                        </div>
+                        
+                        <div class="grid grid-cols-7 gap-1 sm:gap-3 text-center mb-2">
+                            <div class="text-[8px] sm:text-[10px] font-black text-red-400 uppercase">Min</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Sen</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Sel</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Rab</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Kam</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Jum</div>
+                            <div class="text-[8px] sm:text-[10px] font-black text-slate-400 uppercase">Sab</div>
+                        </div>
+                        
+                        <div id="calendar-grid" class="grid grid-cols-7 gap-1 sm:gap-3"></div>
+                    </div>
+                </div>
+
+                <!-- VIEW: KEUANGAN -->
+                <div id="view-financial" class="hidden space-y-8">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-green-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Pemasukan</p>
+                            <h3 id="fin-income" class="text-lg font-black text-slate-800 truncate">Rp 0</h3>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm border-l-4 border-l-red-500">
+                            <p class="text-[10px] font-bold text-slate-400 uppercase">Pengeluaran</p>
+                            <h3 id="fin-expense" class="text-lg font-black text-slate-800 truncate">Rp 0</h3>
+                        </div>
+                        <div class="bg-slate-900 p-6 rounded-2xl border border-slate-800 shadow-sm border-l-4 border-l-blue-500">
+                            <p class="text-[10px] font-bold text-slate-500 uppercase">Saldo</p>
+                            <h3 id="fin-balance" class="text-lg font-black text-white truncate">Rp 0</h3>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-black text-slate-700 uppercase mb-4 tracking-widest"><i class="fas fa-lightbulb mr-2 text-amber-500"></i> Saran Finansial</h3>
+                            <div id="fin-advice-container" class="space-y-4 text-xs"></div>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                            <h3 class="text-xs font-black text-slate-700 uppercase mb-4 tracking-widest"><i class="fas fa-chart-pie mr-2 text-blue-500"></i> Alokasi Dana</h3>
+                            <div class="chart-container"><canvas id="financialDonutChart"></canvas></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                            <input type="text" id="fin-title" placeholder="Keterangan..." class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                            <input type="number" id="fin-amount" placeholder="Nominal Rp..." class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                            <select id="fin-category" class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                                <option value="Pemasukan">Pemasukan Utama</option>
+                                <option value="Makan">Makan & Minum</option>
+                                <option value="Transport">Transportasi</option>
+                                <option value="Hiburan">Hiburan/Jajan</option>
+                                <option value="Tagihan">Tagihan/Bulanan</option>
+                                <option value="Lainnya">Lain-lain</option>
+                            </select>
+                            <select id="fin-type" class="bg-slate-50 border-none px-4 py-2 rounded-lg text-sm">
+                                <option value="income">Masuk (+)</option>
+                                <option value="expense">Keluar (-)</option>
+                            </select>
+                            <button onclick="addFinancialTransaction()" class="bg-blue-600 text-white py-2 rounded-lg text-sm font-bold shadow-lg w-full">CATAT</button>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-xs sm:text-sm">
+                                <thead class="bg-slate-900 text-white">
+                                    <tr>
+                                        <th class="p-4 font-bold uppercase text-[9px]">Tanggal</th>
+                                        <th class="p-4 font-bold uppercase text-[9px]">Keterangan</th>
+                                        <th class="p-4 font-bold uppercase text-[9px]">Kategori</th>
+                                        <th class="p-4 font-bold uppercase text-[9px] text-right">Nominal</th>
+                                        <th class="p-4 font-bold uppercase text-[9px] text-center">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fin-list-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION: GRAFIK KURVA -->
+                <div class="bg-white p-4 lg:p-6 rounded-2xl border border-slate-200 shadow-sm">
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-6">
+                        <i class="fas fa-chart-area mr-2 text-blue-500"></i> Statistik Tren Konsistensi
+                    </h3>
+                    <div class="chart-container"><canvas id="consistencyChart"></canvas></div>
+                </div>
+
+                <!-- GLOBAL NOTES -->
+                <div class="pb-12">
+                    <h3 class="text-[10px] font-black text-slate-400 uppercase mb-4 tracking-widest"><i class="fas fa-sticky-note mr-2"></i> General Notes</h3>
+                    <textarea id="general-notes" oninput="saveGeneralNotes()" placeholder="Tuliskan ide di sini..." class="w-full h-40 bg-white border border-slate-200 p-6 rounded-2xl text-sm shadow-sm outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        let currentView = 'dashboard';
+        let currentMonth = new Date().getMonth(); 
+        const year = 2026;
+        let consistencyChart = null;
+        let financialDonutChart = null;
+
+        let state = { daily: [], targets: [], listTugas: [], financials: [], generalNotes: '' };
+
+        const monthNames = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+
+        function init() {
+            const saved = localStorage.getItem('planner_state_2026_final');
+            if (saved) state = JSON.parse(saved);
+            document.getElementById('current-date-display').innerText = new Date().toLocaleDateString('id-ID', { day:'numeric', month:'long', year:'numeric' });
+            document.getElementById('general-notes').value = state.generalNotes || '';
+            updateUI();
+        }
+
+        // Fitur Responsive Sidebar
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            const isHidden = sidebar.classList.contains('-translate-x-full');
+            
+            if (isHidden) {
+                sidebar.classList.remove('-translate-x-full');
+                overlay.classList.remove('hidden');
+            } else {
+                sidebar.classList.add('-translate-x-full');
+                overlay.classList.add('hidden');
+            }
+        }
+
+        function setView(view) {
+            currentView = view;
+            const views = ['dashboard', 'daily', 'target', 'calendar', 'list-tugas', 'financial'];
+            views.forEach(v => document.getElementById('view-' + v).classList.add('hidden'));
+            document.getElementById('view-' + view).classList.remove('hidden');
+            
+            const navs = ['dashboard', 'daily', 'target', 'calendar', 'list-tugas', 'financial'];
+            navs.forEach(n => {
+                const el = document.getElementById('nav-' + n);
+                n === view ? el.classList.add('sidebar-item-active') : el.classList.remove('sidebar-item-active');
+            });
+
+            document.getElementById('view-title').innerText = view.replace('-', ' ').toUpperCase();
+            
+            if (window.innerWidth < 1024) toggleSidebar();
+            
+            updateUI();
+        }
+
+        function addDailyTask() {
+            const input = document.getElementById('daily-input');
+            const q = document.getElementById('daily-quadrant').value;
+            if (!input.value.trim()) return;
+            state.daily.push({ id: Date.now(), text: input.value, quadrant: q, done: false, date: new Date().toISOString().split('T')[0] });
+            input.value = ''; saveAndRefresh();
+        }
+
+        function addTarget() {
+            const input = document.getElementById('target-input');
+            const date = document.getElementById('target-date').value;
+            if (!input.value.trim() || !date) return;
+            state.targets.push({ id: Date.now(), text: input.value, date: date, done: false });
+            input.value = ''; saveAndRefresh();
+        }
+
+        function addListTugas() {
+            const input = document.getElementById('tugas-input');
+            const date = document.getElementById('tugas-date').value;
+            if (!input.value.trim() || !date) return;
+            state.listTugas.push({ id: Date.now(), text: input.value, date: date, done: false });
+            input.value = ''; saveAndRefresh();
+        }
+
+        function addFinancialTransaction() {
+            const title = document.getElementById('fin-title').value;
+            const amount = parseFloat(document.getElementById('fin-amount').value);
+            const cat = document.getElementById('fin-category').value;
+            const type = document.getElementById('fin-type').value;
+            if (!title || isNaN(amount)) return;
+            state.financials.push({ id: Date.now(), title, amount, category: cat, type, date: new Date().toISOString().split('T')[0] });
+            document.getElementById('fin-title').value = '';
+            document.getElementById('fin-amount').value = '';
+            saveAndRefresh();
+        }
+
+        function calculatePriority(targetDate) {
+            const diff = Math.ceil((new Date(targetDate) - new Date().setHours(0,0,0,0)) / 86400000);
+            return diff <= 2 ? 1 : (diff <= 7 ? 2 : (diff <= 14 ? 3 : 4));
+        }
+
+        function toggleGeneric(type, id) {
+            const item = state[type].find(i => i.id === id);
+            if (item) item.done = !item.done;
+            saveAndRefresh();
+        }
+
+        function deleteGeneric(type, id) {
+            state[type] = state[type].filter(i => i.id !== id);
+            saveAndRefresh();
+        }
+
+        function saveAndRefresh() {
+            localStorage.setItem('planner_state_2026_final', JSON.stringify(state));
+            updateUI();
+        }
+
+        function saveGeneralNotes() {
+            state.generalNotes = document.getElementById('general-notes').value;
+            localStorage.setItem('planner_state_2026_final', JSON.stringify(state));
+        }
+
+        function getDayStatus(dateKey) {
+            const tasks = state.daily.filter(t => t.date === dateKey);
+            if (tasks.length === 0) return 'none';
+            return (tasks.length >= 5 && tasks.every(t => t.done)) ? 'success' : 'fail';
+        }
+
+        function changeMonth(dir) {
+            currentMonth = (currentMonth + dir + 12) % 12;
+            renderCalendar();
+        }
+
+        function updateUI() {
+            renderDashboard();
+            renderDaily();
+            renderTargets();
+            renderListTugas();
+            renderCalendar();
+            renderFinancials();
+            renderCharts();
+            
+            const total = state.daily.length + state.targets.length + state.listTugas.length;
+            const done = [...state.daily, ...state.targets, ...state.listTugas].filter(t => t.done).length;
+            document.getElementById('overall-progress').style.width = (total ? (done/total)*100 : 0) + '%';
+        }
+
+        function renderDashboard() {
+            const today = new Date().toISOString().split('T')[0];
+            const tasksToday = state.daily.filter(t => t.date === today);
+            document.getElementById('dash-daily').innerText = tasksToday.length;
+            document.getElementById('dash-target').innerText = state.targets.filter(t => !t.done).length;
+            
+            const uniqueDates = [...new Set(state.daily.map(t => t.date))];
+            const success = uniqueDates.filter(d => getDayStatus(d) === 'success').length;
+            const prob = uniqueDates.length ? Math.round((success/uniqueDates.length)*100) : 0;
+            document.getElementById('dash-probability').innerText = prob + '%';
+
+            const status = getDayStatus(today);
+            const logicText = document.getElementById('dash-logic-text');
+            const logicIcon = document.getElementById('dash-logic-icon');
+            if (status === 'success') {
+                logicText.innerText = "Target Konsisten!"; logicText.className = "text-xs font-bold text-green-600";
+                logicIcon.className = "fas fa-check-circle text-green-500 text-xl";
+            } else {
+                logicText.innerText = tasksToday.length < 5 ? "Minimal 5 Tugas" : "Selesaikan Semua";
+                logicText.className = "text-xs font-bold text-red-600";
+                logicIcon.className = "fas fa-times-circle text-red-500 text-xl";
+            }
+        }
+
+        function renderDaily() {
+            for (let i = 1; i <= 4; i++) {
+                const container = document.getElementById('q-' + i);
+                container.innerHTML = '';
+                state.daily.filter(t => t.quadrant == i).forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = `flex items-center justify-between p-2 bg-white rounded-lg shadow-sm border border-slate-100 text-[10px] ${t.done ? 'opacity-50' : ''}`;
+                    div.innerHTML = `
+                        <div class="flex items-center space-x-2">
+                            <button onclick="toggleGeneric('daily', ${t.id})"><i class="${t.done ? 'fas fa-check-square text-blue-500' : 'far fa-square text-slate-300'}"></i></button>
+                            <span class="${t.done ? 'line-through text-slate-400' : 'font-medium'}">${t.text}</span>
+                        </div>
+                        <button onclick="deleteGeneric('daily', ${t.id})" class="text-slate-300 hover:text-red-500"><i class="fas fa-trash"></i></button>`;
+                    container.appendChild(div);
+                });
+            }
+        }
+
+        function renderTargets() {
+            const list = document.getElementById('target-list');
+            list.innerHTML = '';
+            state.targets.forEach(t => {
+                const div = document.createElement('div');
+                div.className = "bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between shadow-sm text-xs";
+                div.innerHTML = `
+                    <div class="flex items-center space-x-3">
+                        <button onclick="toggleGeneric('targets', ${t.id})" class="${t.done ? 'text-blue-500' : 'text-slate-200'}"><i class="fas fa-check-circle"></i></button>
+                        <div><p class="font-bold ${t.done ? 'line-through' : ''}">${t.text}</p><p class="text-[9px] text-blue-500 font-bold">${t.date}</p></div>
+                    </div>
+                    <button onclick="deleteGeneric('targets', ${t.id})" class="text-slate-200 hover:text-red-500"><i class="fas fa-trash"></i></button>`;
+                list.appendChild(div);
+            });
+        }
+
+        function renderListTugas() {
+            const raw = document.getElementById('tugas-list-raw');
+            raw.innerHTML = '';
+            for (let i = 1; i <= 4; i++) document.getElementById('t-q-' + i).innerHTML = '';
+            
+            state.listTugas.forEach(t => {
+                const div = document.createElement('div');
+                div.className = "flex items-center justify-between p-2 bg-white border rounded-lg shadow-sm text-[10px]";
+                div.innerHTML = `<span>${t.text} (${t.date})</span> <button onclick="deleteGeneric('listTugas', ${t.id})" class="text-red-300"><i class="fas fa-times"></i></button>`;
+                raw.appendChild(div);
+                
+                if (!t.done) {
+                    const p = calculatePriority(t.date);
+                    const m = document.createElement('div');
+                    m.className = "p-2 bg-white rounded shadow-sm border-l-4 border-l-slate-400 text-[9px] font-bold";
+                    if(p === 1) m.classList.add('border-l-red-500');
+                    if(p === 2) m.classList.add('border-l-amber-500');
+                    if(p === 3) m.classList.add('border-l-blue-500');
+                    m.innerText = t.text;
+                    const targetContainer = document.getElementById('t-q-' + p);
+                    if(targetContainer) targetContainer.appendChild(m);
+                }
+            });
+        }
+
+        function renderCalendar() {
+            const grid = document.getElementById('calendar-grid');
+            grid.innerHTML = '';
+            document.getElementById('cal-month').innerText = `${monthNames[currentMonth]} ${year}`;
+            const first = new Date(year, currentMonth, 1).getDay();
+            const days = new Date(year, currentMonth + 1, 0).getDate();
+            for (let i = 0; i < first; i++) grid.appendChild(document.createElement('div')).className = "bg-slate-50/50 rounded-lg";
+            for (let d = 1; d <= days; d++) {
+                const dateKey = `${year}-${String(currentMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const status = getDayStatus(dateKey);
+                const cell = document.createElement('div');
+                cell.className = `calendar-day`;
+                cell.innerHTML = `<span class="text-[9px] sm:text-xs font-black text-slate-800">${d}</span>`;
+                if (status === 'success') cell.classList.add('day-success');
+                if (status === 'fail') cell.classList.add('day-fail');
+                state.targets.filter(t => t.date === dateKey).forEach(t => { cell.innerHTML += `<div class="target-pill">${t.text}</div>`; });
+                state.listTugas.filter(t => t.date === dateKey).forEach(t => { cell.innerHTML += `<div class="task-pill">${t.text}</div>`; });
+                grid.appendChild(cell);
+            }
+        }
+
+        function renderFinancials() {
+            let inc = 0, exp = 0, cats = {};
+            state.financials.forEach(f => {
+                if(f.type === 'income') inc += f.amount;
+                else { exp += f.amount; cats[f.category] = (cats[f.category] || 0) + f.amount; }
+            });
+            const fmt = (n) => "Rp " + n.toLocaleString('id-ID');
+            document.getElementById('fin-income').innerText = fmt(inc);
+            document.getElementById('fin-expense').innerText = fmt(exp);
+            document.getElementById('fin-balance').innerText = fmt(inc - exp);
+
+            const body = document.getElementById('fin-list-body');
+            body.innerHTML = '';
+            [...state.financials].reverse().forEach(f => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b text-[10px]";
+                tr.innerHTML = `
+                    <td class="p-4 font-mono">${f.date}</td>
+                    <td class="p-4 font-bold">${f.title}</td>
+                    <td class="p-4">${f.category}</td>
+                    <td class="p-4 text-right font-black ${f.type === 'income' ? 'text-emerald-600' : 'text-red-500'}">${fmt(f.amount)}</td>
+                    <td class="p-4 text-center"><button onclick="deleteGeneric('financials', ${f.id})"><i class="fas fa-trash"></i></button></td>`;
+                body.appendChild(tr);
+            });
+
+            const advice = document.getElementById('fin-advice-container');
+            advice.innerHTML = '';
+            const jajan = cats['Hiburan'] || 0;
+            if (inc > 0 && (jajan/inc) > 0.2) {
+                advice.innerHTML = `<div class="bg-red-50 p-3 rounded-lg text-red-600 font-bold">⚠️ Boros Hiburan! Alokasi hiburan sudah > 20%. Kurangi belanja impulsif.</div>`;
+            } else {
+                advice.innerHTML = `<div class="bg-green-50 p-3 rounded-lg text-green-600 font-bold">✅ Manajemen Sehat! Saldo dan alokasi dana masih dalam batas aman.</div>`;
+            }
+
+            if (financialDonutChart) financialDonutChart.destroy();
+            const fCtx = document.getElementById('financialDonutChart').getContext('2d');
+            financialDonutChart = new Chart(fCtx, {
+                type: 'doughnut',
+                data: { labels: Object.keys(cats), datasets: [{ data: Object.values(cats), backgroundColor: ['#ef4444', '#3b82f6', '#f59e0b', '#10b981', '#8b5cf6'] }] },
+                options: { maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 8 } } } } }
+            });
+        }
+
+        function renderCharts() {
+            if (consistencyChart) consistencyChart.destroy();
+            const cCtx = document.getElementById('consistencyChart').getContext('2d');
+            let labels = [], points = [], score = 0;
+            for(let i=14; i>=0; i--) {
+                const d = new Date(); d.setDate(d.getDate()-i);
+                const key = d.toISOString().split('T')[0];
+                const s = getDayStatus(key);
+                if(s === 'success') score++; else if(s === 'fail') score = Math.max(0, score-1);
+                labels.push(d.getDate() + '/' + (d.getMonth()+1)); points.push(score);
+            }
+            consistencyChart = new Chart(cCtx, {
+                type: 'line',
+                data: { labels, datasets: [{ label: 'Skor', data: points, borderColor: '#3b82f6', tension: 0.3, fill: false }] },
+                options: { maintainAspectRatio: false, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+            });
+        }
+
+        init();
+        setView('dashboard');
+    </script>
+</body>
+</html>
